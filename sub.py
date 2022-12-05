@@ -9,14 +9,16 @@ import re
 import requests
 import tempfile
 import json
+import uvicorn
 import yaml
-from flask import Flask, request
+from fastapi import FastAPI, Query, Request
+from fastapi.responses import PlainTextResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from urllib.parse import urlsplit, unquote, parse_qsl
-from werkzeug.exceptions import HTTPException
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
-app = Flask(__name__)
+app = FastAPI()
 
 
 def ordered_yaml_load(stream, Loader=yaml.SafeLoader, object_pairs_hook=collections.OrderedDict):
@@ -400,22 +402,18 @@ class SubConv:
         return result
 
 
-@app.errorhandler(Exception)
-def handle_error(e):
-    code = 500
-    if isinstance(e, HTTPException):
-        code = e.code
-        logger.info(e)
-    return str(e), code
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request, exc):
+    return PlainTextResponse(str(exc.detail), status_code=exc.status_code)
+# @app.errorhandler(Exception)
 
 
-@app.route("/subconv", methods=["GET"])
-def get_sub():
-    urls = request.args.getlist("url")
+@app.get("/subconv")
+async def get_sub(*, url: list[str] = Query(...)):
     sites = []
     subConv = SubConv()
-    for url in urls:
-        response = requests.get(url)
+    for x in url:
+        response = requests.get(x)
         if not response.ok:
             raise ValueError("获取订阅失败")
         s = response.content.decode()
@@ -427,10 +425,11 @@ def get_sub():
     return result
 
 
-@app.route("/subconv", methods=["POST"])
-def post_sub():
+@app.post("/subconv")
+async def post_sub(request: Request):
+    body = await request.body()
     subConv = SubConv()
-    nodes = subConv.b64decode(request.data).split("\n")
+    nodes = subConv.b64decode(body).split("\n")
     content = subConv.parse_base_nodes(nodes)
     # a = self._yaml_dump(result)
     result = yaml.safe_dump(content, allow_unicode=True, sort_keys=False, default_flow_style=False)
@@ -438,4 +437,4 @@ def post_sub():
 
 
 if __name__ == "__main__":
-    app.run("0.0.0.0", 8080)
+    uvicorn.run(app, host="0.0.0.0", port=8080)
