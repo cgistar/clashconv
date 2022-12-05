@@ -409,6 +409,11 @@ async def http_exception_handler(request, exc):
 # @app.errorhandler(Exception)
 
 
+@app.get("/")
+def hello():
+    return PlainTextResponse("hello!")
+
+
 @app.get("/subconv")
 async def get_sub(*, url: Union[List[str], None] = Query(None)):
     sites = []
@@ -416,14 +421,14 @@ async def get_sub(*, url: Union[List[str], None] = Query(None)):
     for x in url:
         response = requests.get(x)
         if not response.ok:
-            raise ValueError("获取订阅失败")
+            raise ValueError(f"获取订阅失败: {x}")
         s = response.content.decode()
         nodes = subConv.b64decode(s).split("\n")
         sites.extend(nodes)
     content = subConv.parse_base_nodes(sites)
     # a = self._yaml_dump(result)
     result = yaml.safe_dump(content, allow_unicode=True, sort_keys=False, default_flow_style=False)
-    return result
+    return PlainTextResponse(result)
 
 
 @app.post("/subconv")
@@ -434,7 +439,7 @@ async def post_sub(request: Request):
     content = subConv.parse_base_nodes(nodes)
     # a = self._yaml_dump(result)
     result = yaml.safe_dump(content, allow_unicode=True, sort_keys=False, default_flow_style=False)
-    return result
+    return PlainTextResponse(result)
 
 
 if __name__ == "__main__":
