@@ -415,7 +415,7 @@ def hello():
 
 
 @app.get("/subconv")
-async def get_sub(*, url: Union[List[str], None] = Query(None)):
+def get_sub(*, url: Union[List[str], None] = Query(None)):
     sites = []
     subConv = SubConv()
     for x in url:
