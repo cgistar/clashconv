@@ -14,6 +14,7 @@ import yaml
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import PlainTextResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from typing import List, Union
 from urllib.parse import urlsplit, unquote, parse_qsl
 
 logging.basicConfig(level=logging.INFO)
@@ -409,7 +410,7 @@ async def http_exception_handler(request, exc):
 
 
 @app.get("/subconv")
-async def get_sub(*, url: list[str] = Query(...)):
+async def get_sub(*, url: Union[List[str], None] = Query(None)):
     sites = []
     subConv = SubConv()
     for x in url:
