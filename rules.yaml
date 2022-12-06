@@ -1,0 +1,153 @@
+proxy_groups:
+  - name: 🔰 节点选择1
+    type: select
+    proxies:
+      - '@全部节点'
+  - name: 🔰 节点选择2
+    type: select
+    proxies:
+      - '@全部节点'
+  - name: ♻️ 自动选择
+    type: url-test
+    proxies:
+      - '@国家节点'
+  - name: 🎯 全球直连
+    type: select
+    proxies:
+      - DIRECT
+    hosts:
+      - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/UnBan.list
+      - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ChinaDomain.list
+      - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ChinaMedia.list
+  - name: 🛑 全球拦截
+    type: select
+    proxies:
+      - REJECT
+      - DIRECT
+    hosts:
+      - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/BanAD.list
+      - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/BanProgramAD.list
+  - name: 🎮 Steam
+    type: select
+      - 🎯 全球直连
+      - ♻️ 自动选择
+      - 🔰 节点选择1
+      - 🔰 节点选择2
+      - '@国家节点'
+    hosts:
+      - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Steam.list
+  - name: Ⓜ️ 微软
+    type: select
+      - 🎯 全球直连
+      - ♻️ 自动选择
+      - 🔰 节点选择1
+      - 🔰 节点选择2
+      - '@国家节点'
+    hosts:
+      - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Microsoft.list
+  - name: 🍎 苹果
+    type: select
+    proxies:
+      - 🎯 全球直连
+      - 🔰 节点选择1
+      - 🔰 节点选择2
+      - '@国家节点'
+    hosts:
+      - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Apple.list
+      - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/AppleTV.list
+      - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/AppleNews.list
+  - name: 奈飞
+    type: select
+    proxies:
+      - ♻️ 自动选择
+      - 🔰 节点选择1
+      - 🔰 节点选择2
+      - '@国家节点'
+    hosts:
+      - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Netflix.list
+  - name: YouTube
+    type: select
+      - ♻️ 自动选择
+      - 🔰 节点选择1
+      - 🔰 节点选择2
+      - '@国家节点'
+    hosts:
+      - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/YouTube.list
+      - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/GoogleFCM.list
+      - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/GoogleCN.list
+  - name: 🎶 Spotify
+    type: select
+      - ♻️ 自动选择
+      - 🔰 节点选择1
+      - 🔰 节点选择2
+      - '@国家节点'
+    hosts:
+      - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Spotify.list
+  - name: 🌍 Github
+    type: select
+      - ♻️ 自动选择
+      - 🔰 节点选择1
+      - 🔰 节点选择2
+      - '@国家节点'
+    hosts:
+      - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Github.list
+LocalAreaNetwork:
+  - DOMAIN-SUFFIX,ip6-localhost
+  - DOMAIN-SUFFIX,ip6-loopback
+  - DOMAIN-SUFFIX,lan
+  - DOMAIN-SUFFIX,local
+  - DOMAIN-SUFFIX,localhost
+  - IP-CIDR,10.0.0.0/8,no-resolve
+  - IP-CIDR,100.64.0.0/10,no-resolve
+  - IP-CIDR,127.0.0.0/8,no-resolve
+  - IP-CIDR,172.16.0.0/12,no-resolve
+  - IP-CIDR,192.168.0.0/16,no-resolve
+  - IP-CIDR,198.18.0.0/16,no-resolve
+  - IP-CIDR,224.0.0.0/4,no-resolve
+  - IP-CIDR6,::1/128,no-resolve
+  - IP-CIDR6,fc00::/7,no-resolve
+  - IP-CIDR6,fe80::/10,no-resolve
+  - IP-CIDR6,fd00::/8,no-resolve
+
+  # Router managed 路由器管理域名
+  - DOMAIN,instant.arubanetworks.com
+  - DOMAIN,setmeup.arubanetworks.com
+  - DOMAIN,router.asus.com
+  - DOMAIN-SUFFIX,hiwifi.com
+  - DOMAIN-SUFFIX,leike.cc
+  - DOMAIN-SUFFIX,miwifi.com
+  - DOMAIN-SUFFIX,my.router
+  - DOMAIN-SUFFIX,p.to
+  - DOMAIN-SUFFIX,peiluyou.com
+  - DOMAIN-SUFFIX,phicomm.me
+  - DOMAIN-SUFFIX,router.ctc
+  - DOMAIN-SUFFIX,routerlogin.com
+  - DOMAIN-SUFFIX,tendawifi.com
+  - DOMAIN-SUFFIX,zte.home
+  - DOMAIN-SUFFIX,tplogin.cn
+skip-proxy:
+  - localhost
+  - '*.local'
+  - injections.adguard.org
+  - local.adguard.org
+  - 0.0.0.0/8
+  - 10.0.0.0/8
+  - 17.0.0.0/8
+  - 100.64.0.0/10
+  - 127.0.0.0/8
+  - 169.254.0.0/16
+  - 172.16.0.0/12
+  - 192.0.0.0/24
+  - 192.0.2.0/24
+  - 192.168.0.0/16
+  - 192.88.99.0/24
+  - 198.18.0.0/15
+  - 198.51.100.0/24
+  - 203.0.113.0/24
+  - 224.0.0.0/4
+  - 240.0.0.0/4
+  - 255.255.255.255/32
+dns-server:
+  - 223.6.6.6
+  - 119.29.29.29
+  - 119.28.28.28

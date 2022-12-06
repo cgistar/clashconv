@@ -6,13 +6,13 @@ import collections
 import logging
 import os
 import re
-import requests
+import httpx
 import tempfile
-import json
+import orjson
 import uvicorn
 import yaml
 from fastapi import FastAPI, Query, Request
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import HTMLResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from typing import List, Union
 from urllib.parse import urlsplit, unquote, parse_qsl
@@ -45,7 +45,7 @@ def ordered_yaml_dump(data, stream=None, Dumper=yaml.SafeDumper, object_pairs_ho
     return yaml.dump(data, stream, OrderedDumper, **kwds)
 
 
-class SubConv:
+class ClashConv:
     def __init__(self, fileName=None) -> None:
         self.countrys = collections.OrderedDict()
         self.countrys["香港"] = "🇭🇰香港"
@@ -115,7 +115,7 @@ class SubConv:
 
     def _parse_vmess(self, url):
         node = dict()
-        info = json.loads(self.b64decode(url[1]))
+        info = orjson.loads(self.b64decode(url[1]))
         node["name"] = info["ps"]
         node["server"] = info["add"]
         node["port"] = info["port"] or "443"
@@ -189,7 +189,7 @@ class SubConv:
 
         return node
 
-    def _sub_decode(self, s):
+    def _clash_decode(self, s):
         if not s:
             return None
         o = urlsplit(s)
@@ -207,7 +207,7 @@ class SubConv:
             logger.error(e)
         return None
 
-    def download_rules(self, urls: list):
+    async def download_rules(self, urls: list):
         """
         下载规则文件
         """
@@ -216,18 +216,25 @@ class SubConv:
             filename = os.path.basename(url)
             filepath = os.path.join(cwd, filename)
             if not os.path.exists(filepath):
-                response = requests.get(url)
-                if response.ok:
-                    with open(filepath, "wb") as f:
-                        f.write(response.content)
+                async with httpx.AsyncClient() as client:
+                    try:
+                        response = await client.get(url)
+                        if response.is_success:
+                            f = open(filepath, "wb")
+                            f.write(response.content)
+                            f.close
+                    except Exception:
+                        logger.error(f"下载失败: {url}")
 
-    def get_rule(self, groupname, urls: list):
-        self.download_rules(urls)
+    async def get_rule(self, groupname, urls: list):
+        await self.download_rules(urls)
         rules = []
         cwd = tempfile.gettempdir()     # os.getcwd()
         for url in urls:
             filename = os.path.basename(url)
             filepath = os.path.join(cwd, filename)
+            if not os.path.exists(filepath):
+                continue
 
             # 从下载的文件中读取配置项
             with open(filepath, "rt", encoding="utf-8") as f:
@@ -243,7 +250,7 @@ class SubConv:
                             rules.append(f"{line.strip()},{groupname}")
         return sorted(list(set(rules)))
 
-    def build_rule(self):
+    async def build_rule(self):
         config = [
             [
                 "🛑 全球拦截",
@@ -274,7 +281,6 @@ class SubConv:
             ["Ⓜ️ 微软", "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Microsoft.list"],
             ["🎶 Spotify", "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Spotify.list"],
             ["🌍 Github", "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Github.list"],
-            ["DIRECT", "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ChinaDomain.list"],
         ]
         rules = [
             "IP-CIDR,198.18.0.1/16,REJECT,no-resolve",
@@ -282,44 +288,40 @@ class SubConv:
             "RULE-SET,personal,DIRECT"
         ]
         for x in config:
-            r = self.get_rule(x[0], x[1:])
+            r = await self.get_rule(x[0], x[1:])
             rules.extend(r)
         add_rule = [
             "RULE-SET,Custom,自定义",
-            "DOMAIN-KEYWORD,aria2,🎯 全球直连",
-            "DOMAIN-KEYWORD,xunlei,🎯 全球直连",
-            "DOMAIN-KEYWORD,yunpan,🎯 全球直连",
-            "DOMAIN-KEYWORD,Thunder,🎯 全球直连",
-            "DOMAIN-KEYWORD,XLLiveUD,🎯 全球直连",
-            "GEOIP,CN,🎯 全球直连",
+            "DOMAIN-KEYWORD,aria2,DIRECT",
+            "DOMAIN-KEYWORD,xunlei,DIRECT",
+            "DOMAIN-KEYWORD,yunpan,DIRECT",
+            "DOMAIN-KEYWORD,Thunder,DIRECT",
+            "DOMAIN-KEYWORD,XLLiveUD,DIRECT",
+            "GEOIP,CN,DIRECT",
             "MATCH,🐟 漏网之鱼",
         ]
         rules.extend(add_rule)
         return rules
 
-    def parse_base_nodes(self, nodes):
-        test_params = {"url": "http://www.gstatic.com/generate_204", "interval": 300}
-        result = dict()
-        result["mixed-port"] = 7890
-        result["allow-lan"] = True
-        result["bind-address"] = "*"
-        result["mode"] = "rule"
-        result["log-level"] = "info"
-        result["external-controller"] = "127.0.0.1:9090"
+    def _clash_proxies(self, nodes):
+        """
+        解析clash格式节点数据
+        """
         proxies = []
-        result["proxies"] = proxies
-
-        nodeNames = []
         for node in nodes:
-            proxie = self._sub_decode(node)
+            proxie = self._clash_decode(node)
             if proxie:
                 proxies.append(proxie)
-                nodeNames.append(proxie["name"])
+        return proxies
 
-        allNodes = []
-        autoNodes = []
-        otherNodes = []
+    def _clash_proxy_groups(self, proxies):
+        """
+        clash 代理组
+        """
+        test_params = {"url": "http://www.gstatic.com/generate_204", "interval": 300}
+
         groups = collections.defaultdict(list)
+        nodeNames = [x["name"] for x in proxies]
         for item in ["倍扣", "test", "测试"]:
             addNodes = set()
             for p in nodeNames:
@@ -344,28 +346,58 @@ class SubConv:
             n = set(nodeNames) - addNodes
             nodeNames = [x for x in nodeNames if x in n]
 
+        # 剩余解析不了的，全部归入其它
         groups["其它"] = list(nodeNames)
-        result["proxy-groups"] = []
 
+        allNodes = []
+        autoNodes = []
         proxyGroups = []
         for item in groups.keys():
             g = {}
             if item == "倍扣":
                 g = {"name": "多倍扣费", "type": "select", "proxies": sorted(groups[item])}
-                otherNodes.append(g["name"])
+                autoNodes.append(g["name"])
             elif item in ("test", "测试"):
                 g = {"name": "测试线路", "type": "select", "proxies": sorted(groups[item])}
-                otherNodes.append(g["name"])
+                autoNodes.append(g["name"])
             elif item == "其它":
                 g = {"name": item, "type": "select", "proxies": sorted(groups[item])}
             else:
-                # name = f"{item}自动"
                 g = {"name": item, "type": "url-test", "proxies": sorted(groups[item]), **test_params}
                 autoNodes.append(item)
             if g.get("proxies"):
                 allNodes.extend(g["proxies"])
                 proxyGroups.append(g)
-        autoNodes.extend(otherNodes)
+
+        return [
+            {"name": "🔰 节点选择1", "type": "select", "proxies": [*allNodes]},
+            {"name": "🔰 节点选择2", "type": "select", "proxies": [*allNodes]},
+            {"name": "♻️ 自动选择", "type": "url-test", "proxies": [*autoNodes], **test_params},
+            {"name": "🎯 全球直连", "type": "select", "proxies": ["DIRECT"]},
+            {"name": "🛑 全球拦截", "type": "select", "proxies": ["REJECT", "DIRECT"]},
+            {"name": "Ⓜ️ 微软", "type": "select", "proxies": ["🎯 全球直连", "♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
+            {"name": "🌍 Github", "type": "select", "proxies": ["♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
+            {"name": "🎮 Steam", "type": "select", "proxies": ["🎯 全球直连", "♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
+            {"name": "🎶 Spotify", "type": "select", "proxies": ["♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
+            {"name": "🍎 苹果", "type": "select", "proxies": ["🎯 全球直连", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
+            {"name": "🎥 奈飞", "type": "select", "proxies": ["♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
+            {"name": "📹 YouTube", "type": "select", "proxies": ["♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
+            {"name": "自定义", "type": "select", "proxies": ["♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
+            {"name": "🐟 漏网之鱼", "type": "select", "proxies": ["♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", "🎯 全球直连", *autoNodes]},
+        ]
+
+    async def parse_base_nodes(self, nodes):
+        result = dict()
+        result["mixed-port"] = 7890
+        result["allow-lan"] = True
+        result["bind-address"] = "*"
+        result["mode"] = "rule"
+        result["log-level"] = "info"
+        result["external-controller"] = "127.0.0.1:9090"
+
+        result["proxies"] = self._clash_proxies(nodes)
+        result["proxy-groups"] = self._clash_proxy_groups(result["proxies"])
+
         result["rule-providers"] = {
             "Custom": {
                 "type": "http",
@@ -382,64 +414,48 @@ class SubConv:
                 "interval": 3600,
             },
         }
-        result["proxy-groups"] = [
-            {"name": "🔰 节点选择1", "type": "select", "proxies": allNodes},
-            {"name": "🔰 节点选择2", "type": "select", "proxies": allNodes},
-            {"name": "♻️ 自动选择", "type": "url-test", "proxies": autoNodes, **test_params},
-            {"name": "🎯 全球直连", "type": "select", "proxies": ["DIRECT"]},
-            {"name": "🛑 全球拦截", "type": "select", "proxies": ["REJECT", "DIRECT"]},
-            {"name": "Ⓜ️ 微软", "type": "select", "proxies": ["🎯 全球直连", "♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
-            {"name": "🌍 Github", "type": "select", "proxies": ["♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
-            {"name": "🎮 Steam", "type": "select", "proxies": ["🎯 全球直连", "♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
-            {"name": "🎶 Spotify", "type": "select", "proxies": ["♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
-            {"name": "🍎 苹果", "type": "select", "proxies": ["🎯 全球直连", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
-            {"name": "🎥 奈飞", "type": "select", "proxies": ["♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
-            {"name": "📹 YouTube", "type": "select", "proxies": ["♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
-            {"name": "自定义", "type": "select", "proxies": ["♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
-            {"name": "🐟 漏网之鱼", "type": "select", "proxies": ["♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", "🎯 全球直连", *autoNodes]},
-        ]
-        result["proxy-groups"].extend(proxyGroups)
-        result["rules"] = self.build_rule()
+        result["rules"] = await self.build_rule()
         return result
 
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request, exc):
-    return PlainTextResponse(str(exc.detail), status_code=exc.status_code)
-# @app.errorhandler(Exception)
+    return HTMLResponse(str(exc.detail), status_code=exc.status_code)
 
 
 @app.get("/")
 def hello():
-    return PlainTextResponse("hello!")
+    return HTMLResponse("hello!")
 
 
 @app.get("/subconv")
-def get_sub(*, url: Union[List[str], None] = Query(None)):
+async def get_sub(*, url: Union[List[str], None] = Query(None)):
     sites = []
-    subConv = SubConv()
+    subConv = ClashConv()
     for x in url:
-        response = requests.get(x)
-        if not response.ok:
-            raise ValueError(f"获取订阅失败: {x}")
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(x)
+                if not response.is_success:
+                    raise ValueError(f"获取订阅失败: {x}")
+            except Exception:
+                raise ValueError(f"获取订阅失败: {x}")
         s = response.content.decode()
         nodes = subConv.b64decode(s).split("\n")
         sites.extend(nodes)
-    content = subConv.parse_base_nodes(sites)
-    # a = self._yaml_dump(result)
+    content = await subConv.parse_base_nodes(sites)
     result = yaml.safe_dump(content, allow_unicode=True, sort_keys=False, default_flow_style=False)
-    return PlainTextResponse(result)
+    return Response(result, media_type="application/yaml")
 
 
 @app.post("/subconv")
 async def post_sub(request: Request):
     body = await request.body()
-    subConv = SubConv()
+    subConv = ClashConv()
     nodes = subConv.b64decode(body).split("\n")
-    content = subConv.parse_base_nodes(nodes)
-    # a = self._yaml_dump(result)
+    content = await subConv.parse_base_nodes(nodes)
     result = yaml.safe_dump(content, allow_unicode=True, sort_keys=False, default_flow_style=False)
-    return PlainTextResponse(result)
+    return Response(result, media_type="application/yaml")
 
 
 if __name__ == "__main__":
