@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import asyncio
 import base64
 import collections
 import logging
@@ -16,6 +17,11 @@ from fastapi.responses import HTMLResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from typing import List, Union
 from urllib.parse import urlsplit, unquote, parse_qsl
+try:
+    import uvloop
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+except ImportError:
+    pass
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -65,7 +71,7 @@ class ClashConv:
         self.countrys["法国"] = "🇫🇷法国"
         self.countrys["英国"] = "🇬🇧英国"
         self.countrys["荷兰"] = "🇳🇱荷兰"
-        if fileName:
+        if fileName and os.path.exists(fileName):
             f = open(fileName, "r", encoding="utf-8")
             self._stream = f.read()
             f.close()
@@ -207,32 +213,31 @@ class ClashConv:
             logger.error(e)
         return None
 
-    async def download_rules(self, urls: list):
+    async def download_rule(self, url):
         """
         下载规则文件
         """
-        cwd = tempfile.gettempdir()     # os.getcwd()
-        for url in urls:
-            filename = os.path.basename(url)
-            filepath = os.path.join(cwd, filename)
-            if not os.path.exists(filepath):
-                async with httpx.AsyncClient() as client:
-                    try:
-                        response = await client.get(url)
-                        if response.is_success:
-                            f = open(filepath, "wb")
-                            f.write(response.content)
-                            f.close
-                    except Exception:
-                        logger.error(f"下载失败: {url}")
+        cwd = tempfile.gettempdir()
+        filename = os.path.basename(url)
+        filepath = os.path.join(cwd, filename)
+        if os.path.exists(filepath):
+            return filepath
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(url)
+                if response.is_success:
+                    f = open(filepath, "wb")
+                    f.write(response.content)
+                    f.close
+                    return filepath
+            except Exception:
+                logger.error(f"下载失败: {url}")
+        return None
 
-    async def get_rule(self, groupname, urls: list):
-        await self.download_rules(urls)
+    def get_rule(self, groupname, files: list):
         rules = []
-        cwd = tempfile.gettempdir()     # os.getcwd()
-        for url in urls:
-            filename = os.path.basename(url)
-            filepath = os.path.join(cwd, filename)
+        ip_rules = []
+        for filepath in files:
             if not os.path.exists(filepath):
                 continue
 
@@ -245,62 +250,12 @@ class ClashConv:
                     elif line.startswith("IP-CIDR"):
                         rule = list(map(str.strip, line.split(",")))
                         if rule[-1] == "no-resolve":
-                            rules.append("{},{},{}".format(",".join(rule[:-1]), groupname, rule[-1]))
+                            ip_rules.append("{},{},{}".format(",".join(rule[:-1]), groupname, rule[-1]))
                         else:
-                            rules.append(f"{line.strip()},{groupname}")
-        return sorted(list(set(rules)))
-
-    async def build_rule(self):
-        config = [
-            [
-                "🛑 全球拦截",
-                "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/BanAD.list",
-                "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/BanProgramAD.list",
-            ],
-            [
-                "🎯 全球直连",
-                "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/LocalAreaNetwork.list",
-                "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/UnBan.list",
-                "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ChinaDomain.list",
-                "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ChinaMedia.list",
-            ],
-            [
-                "🍎 苹果",
-                "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Apple.list",
-                "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/AppleTV.list",
-                "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/AppleNews.list",
-            ],
-            ["🎥 奈飞", "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Netflix.list"],
-            [
-                "📹 YouTube",
-                "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/YouTube.list",
-                "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/GoogleFCM.list",
-                "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/GoogleCN.list",
-            ],
-            ["🎮 Steam", "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Steam.list"],
-            ["Ⓜ️ 微软", "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Microsoft.list"],
-            ["🎶 Spotify", "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Spotify.list"],
-            ["🌍 Github", "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Github.list"],
-        ]
-        rules = [
-            "IP-CIDR,198.18.0.1/16,REJECT,no-resolve",
-            "GEOIP,private,DIRECT,no-resolve",
-            "RULE-SET,personal,DIRECT"
-        ]
-        for x in config:
-            r = await self.get_rule(x[0], x[1:])
-            rules.extend(r)
-        add_rule = [
-            "RULE-SET,Custom,自定义",
-            "DOMAIN-KEYWORD,aria2,DIRECT",
-            "DOMAIN-KEYWORD,xunlei,DIRECT",
-            "DOMAIN-KEYWORD,yunpan,DIRECT",
-            "DOMAIN-KEYWORD,Thunder,DIRECT",
-            "DOMAIN-KEYWORD,XLLiveUD,DIRECT",
-            "GEOIP,CN,DIRECT",
-            "MATCH,🐟 漏网之鱼",
-        ]
-        rules.extend(add_rule)
+                            ip_rules.append(f"{line.strip()},{groupname}")
+        rules = sorted(list(set(rules)))
+        if ip_rules:
+            rules.extend(sorted(list(set(ip_rules))))
         return rules
 
     def _clash_proxies(self, nodes):
@@ -314,7 +269,7 @@ class ClashConv:
                 proxies.append(proxie)
         return proxies
 
-    def _clash_proxy_groups(self, proxies):
+    def _clash_proxy_groups(self, proxies, cfg_groups):
         """
         clash 代理组
         """
@@ -322,14 +277,15 @@ class ClashConv:
 
         groups = collections.defaultdict(list)
         nodeNames = [x["name"] for x in proxies]
-        for item in ["倍扣", "test", "测试"]:
-            addNodes = set()
-            for p in nodeNames:
-                if p.find(item) >= 0:
-                    addNodes.add(p)
-                    groups[item].append(p)
-            n = set(nodeNames) - addNodes
-            nodeNames = [x for x in nodeNames if x in n]
+
+        addNodes = set()
+        for p in nodeNames:
+            if p.find("test") >= 0 or p.find("测试") >= 0:
+                addNodes.add(p)
+                groups["测试线路"].append(p)
+        n = set(nodeNames) - addNodes
+        nodeNames = [x for x in nodeNames if x in n]
+
         # 收集各国专线
         pattern = re.compile(r"0\.\d+?")
         for name, flag in self.countrys.items():
@@ -341,6 +297,8 @@ class ClashConv:
                         groups[f"{flag}优惠"].append(p)
                     elif p.find("专线") >= 0:
                         groups[f"{flag}专线"].append(p)
+                    elif p.find("倍扣") >= 0:
+                        groups["多倍扣费"].append(p)
                     else:
                         groups[flag].append(p)
             n = set(nodeNames) - addNodes
@@ -369,21 +327,41 @@ class ClashConv:
                 allNodes.extend(g["proxies"])
                 proxyGroups.append(g)
 
+        result = []
+        exclude = ("DIRECT", "REJECT")
+        for group in cfg_groups:
+            if not group.get("proxies") or group["name"] in exclude:
+                continue
+            rec = group.copy()
+            if rec.get("hosts"):
+                rec.pop("hosts")
+            proxies = []
+            for proxie in rec["proxies"]:
+                if proxie == "@全部节点":
+                    proxies.extend(allNodes)
+                elif proxie == "@国家节点":
+                    proxies.extend(autoNodes)
+                else:
+                    proxies.append(proxie)
+            rec["proxies"] = proxies
+            if rec["type"] == "url-test":
+                rec.update(test_params)
+            result.append(rec)
+        result.extend(proxyGroups)
+        return result
+
+    def rules_suffix(self):
+        """
+        后续添加的规则
+        """
         return [
-            {"name": "🔰 节点选择1", "type": "select", "proxies": [*allNodes]},
-            {"name": "🔰 节点选择2", "type": "select", "proxies": [*allNodes]},
-            {"name": "♻️ 自动选择", "type": "url-test", "proxies": [*autoNodes], **test_params},
-            {"name": "🎯 全球直连", "type": "select", "proxies": ["DIRECT"]},
-            {"name": "🛑 全球拦截", "type": "select", "proxies": ["REJECT", "DIRECT"]},
-            {"name": "Ⓜ️ 微软", "type": "select", "proxies": ["🎯 全球直连", "♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
-            {"name": "🌍 Github", "type": "select", "proxies": ["♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
-            {"name": "🎮 Steam", "type": "select", "proxies": ["🎯 全球直连", "♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
-            {"name": "🎶 Spotify", "type": "select", "proxies": ["♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
-            {"name": "🍎 苹果", "type": "select", "proxies": ["🎯 全球直连", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
-            {"name": "🎥 奈飞", "type": "select", "proxies": ["♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
-            {"name": "📹 YouTube", "type": "select", "proxies": ["♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
-            {"name": "自定义", "type": "select", "proxies": ["♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", *autoNodes]},
-            {"name": "🐟 漏网之鱼", "type": "select", "proxies": ["♻️ 自动选择", "🔰 节点选择1", "🔰 节点选择2", "🎯 全球直连", *autoNodes]},
+            "DOMAIN-KEYWORD,aria2,DIRECT",
+            "DOMAIN-KEYWORD,xunlei,DIRECT",
+            "DOMAIN-KEYWORD,yunpan,DIRECT",
+            "DOMAIN-KEYWORD,Thunder,DIRECT",
+            "DOMAIN-KEYWORD,XLLiveUD,DIRECT",
+            "GEOIP,CN,DIRECT",
+            "MATCH,🐟 漏网之鱼",
         ]
 
     async def parse_base_nodes(self, nodes):
@@ -394,27 +372,45 @@ class ClashConv:
         result["mode"] = "rule"
         result["log-level"] = "info"
         result["external-controller"] = "127.0.0.1:9090"
-
         result["proxies"] = self._clash_proxies(nodes)
-        result["proxy-groups"] = self._clash_proxy_groups(result["proxies"])
 
-        result["rule-providers"] = {
-            "Custom": {
-                "type": "http",
-                "behavior": "classical",
-                "path": "./rule_provider/Custom",
-                "url": "https://brinfo.cc/clash/rule_provider/Custom.yaml",
-                "interval": 3600,
-            },
-            "personal": {
-                "type": "http",
-                "behavior": "classical",
-                "path": "./rule_provider/personal",
-                "url": "https://brinfo.cc/clash/rule_provider/personal.yaml",
-                "interval": 3600,
-            },
-        }
-        result["rules"] = await self.build_rule()
+        # 解析配置文件
+        config_path = os.path.join(os.getcwd(), "rules.yaml")
+        cfg_groups = []
+        cfg_providers = {}
+        cfg_rules = [
+            "IP-CIDR,198.18.0.1/16,REJECT,no-resolve",
+            "GEOIP,private,DIRECT,no-resolve",
+        ]
+        if os.path.exists(config_path):
+            with open(config_path, 'rt', encoding="utf-8") as f:
+                cfg = yaml.load(f, Loader=yaml.FullLoader)
+            if cfg.get("rule-providers"):
+                for k, v in cfg["rule-providers"].items():
+                    provider = v
+                    provider.setdefault("interval", 3600)
+                    proxie = "DIRECT"
+                    if provider.get("proxie"):
+                        proxie = provider.pop("proxie")
+                    cfg_rules.append("RULE-SET,{},{}".format(k, proxie))
+                    cfg_providers[k] = provider
+            if cfg.get("proxy_groups"):
+                cfg_groups = cfg["proxy_groups"]
+                for x in cfg_groups:
+                    if x.get("hosts"):
+                        tasks = [self.download_rule(url) for url in x["hosts"]]
+                        pages = await asyncio.gather(*tasks)
+                        files = [page for page in pages if page]
+                        rules = self.get_rule(x["name"], files)
+                        if rules:
+                            cfg_rules.extend(rules)
+
+        result["proxy-groups"] = self._clash_proxy_groups(result["proxies"], cfg_groups)
+
+        if cfg_providers:
+            result["rule-providers"] = cfg_providers
+        result["rules"] = cfg_rules
+        result["rules"].extend(self.rules_suffix())
         return result
 
 

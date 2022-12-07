@@ -1,12 +1,12 @@
 proxy_groups:
-  - name: 🔰 节点选择1
+  - name: 🔰 节点选择
     type: select
     proxies:
       - '@全部节点'
-  - name: 🔰 节点选择2
+  - name: 🔰 国家选择
     type: select
     proxies:
-      - '@全部节点'
+      - '@国家节点'
   - name: ♻️ 自动选择
     type: url-test
     proxies:
@@ -29,19 +29,21 @@ proxy_groups:
       - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/BanProgramAD.list
   - name: 🎮 Steam
     type: select
+    proxies:
       - 🎯 全球直连
       - ♻️ 自动选择
-      - 🔰 节点选择1
-      - 🔰 节点选择2
+      - 🔰 节点选择
+      - 🔰 国家选择
       - '@国家节点'
     hosts:
       - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Steam.list
   - name: Ⓜ️ 微软
     type: select
+    proxies:
       - 🎯 全球直连
       - ♻️ 自动选择
-      - 🔰 节点选择1
-      - 🔰 节点选择2
+      - 🔰 节点选择
+      - 🔰 国家选择
       - '@国家节点'
     hosts:
       - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Microsoft.list
@@ -49,8 +51,8 @@ proxy_groups:
     type: select
     proxies:
       - 🎯 全球直连
-      - 🔰 节点选择1
-      - 🔰 节点选择2
+      - 🔰 节点选择
+      - 🔰 国家选择
       - '@国家节点'
     hosts:
       - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Apple.list
@@ -60,16 +62,17 @@ proxy_groups:
     type: select
     proxies:
       - ♻️ 自动选择
-      - 🔰 节点选择1
-      - 🔰 节点选择2
+      - 🔰 节点选择
+      - 🔰 国家选择
       - '@国家节点'
     hosts:
       - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Netflix.list
   - name: YouTube
     type: select
+    proxies:
       - ♻️ 自动选择
-      - 🔰 节点选择1
-      - 🔰 节点选择2
+      - 🔰 节点选择
+      - 🔰 国家选择
       - '@国家节点'
     hosts:
       - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/YouTube.list
@@ -77,20 +80,45 @@ proxy_groups:
       - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/GoogleCN.list
   - name: 🎶 Spotify
     type: select
+    proxies:
       - ♻️ 自动选择
-      - 🔰 节点选择1
-      - 🔰 节点选择2
+      - 🔰 节点选择
+      - 🔰 国家选择
       - '@国家节点'
     hosts:
       - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Spotify.list
   - name: 🌍 Github
     type: select
+    proxies:
       - ♻️ 自动选择
-      - 🔰 节点选择1
-      - 🔰 节点选择2
+      - 🔰 节点选择
+      - 🔰 国家选择
       - '@国家节点'
     hosts:
       - https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Github.list
+  - name: 🐟 漏网之鱼
+    type: select
+    proxies:
+      - ♻️ 自动选择
+      - 🔰 节点选择
+      - 🔰 国家选择
+      - 🎯 全球直连
+      - '@国家节点'
+rule-providers:
+  personal:
+    type: http
+    behavior: classical
+    path: ./rule_provider/personal
+    url: https://brinfo.cc/clash/rule_provider/personal.yaml
+    interval: 3600
+    proxie: DIRECT
+  Custom:
+    type: http
+    behavior: classical
+    path: ./rule_provider/Custom
+    url: https://brinfo.cc/clash/rule_provider/Custom.yaml
+    interval: 3600
+    proxie: 🔰 国家选择
 LocalAreaNetwork:
   - DOMAIN-SUFFIX,ip6-localhost
   - DOMAIN-SUFFIX,ip6-loopback
