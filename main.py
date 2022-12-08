@@ -264,9 +264,9 @@ class ClashConv:
         """
         proxies = []
         for node in nodes:
-            proxie = self._clash_decode(node)
-            if proxie:
-                proxies.append(proxie)
+            proxy = self._clash_decode(node)
+            if proxy:
+                proxies.append(proxy)
         return proxies
 
     def _clash_proxy_groups(self, proxies, cfg_groups):
@@ -336,13 +336,13 @@ class ClashConv:
             if rec.get("hosts"):
                 rec.pop("hosts")
             proxies = []
-            for proxie in rec["proxies"]:
-                if proxie == "@全部节点":
+            for proxy in rec["proxies"]:
+                if proxy == "@全部节点":
                     proxies.extend(allNodes)
-                elif proxie == "@国家节点":
+                elif proxy == "@国家节点":
                     proxies.extend(autoNodes)
                 else:
-                    proxies.append(proxie)
+                    proxies.append(proxy)
             rec["proxies"] = proxies
             if rec["type"] == "url-test":
                 rec.update(test_params)
@@ -350,7 +350,11 @@ class ClashConv:
         result.extend(proxyGroups)
         return result
 
-    def rules_suffix(self):
+    def rules_local_netware(self):
+        rules = "DOMAIN-SUFFIX,ip6-localhost,DIRECT DOMAIN-SUFFIX,ip6-loopback,DIRECT DOMAIN-SUFFIX,lan,DIRECT DOMAIN-SUFFIX,local,DIRECT DOMAIN-SUFFIX,localhost,DIRECT DOMAIN,instant.arubanetworks.com,DIRECT DOMAIN,setmeup.arubanetworks.com,DIRECT DOMAIN,router.asus.com,DIRECT DOMAIN-SUFFIX,hiwifi.com,DIRECT DOMAIN-SUFFIX,leike.cc,DIRECT DOMAIN-SUFFIX,miwifi.com,DIRECT DOMAIN-SUFFIX,my.router,DIRECT DOMAIN-SUFFIX,p.to,DIRECT DOMAIN-SUFFIX,peiluyou.com,DIRECT DOMAIN-SUFFIX,phicomm.me,DIRECT DOMAIN-SUFFIX,router.ctc,DIRECT DOMAIN-SUFFIX,routerlogin.com,DIRECT DOMAIN-SUFFIX,tendawifi.com,DIRECT DOMAIN-SUFFIX,zte.home,DIRECT DOMAIN-SUFFIX,tplogin.cn,DIRECT"
+        return rules.split()
+
+    def rules_suffix(self, proxyName):
         """
         后续添加的规则
         """
@@ -361,7 +365,7 @@ class ClashConv:
             "DOMAIN-KEYWORD,Thunder,DIRECT",
             "DOMAIN-KEYWORD,XLLiveUD,DIRECT",
             "GEOIP,CN,DIRECT",
-            "MATCH,🐟 漏网之鱼",
+            f"MATCH,{proxyName}",
         ]
 
     async def parse_base_nodes(self, nodes):
@@ -376,12 +380,14 @@ class ClashConv:
 
         # 解析配置文件
         config_path = os.path.join(os.getcwd(), "rules.yaml")
+        default_proxy = ""
         cfg_groups = []
         cfg_providers = {}
         cfg_rules = [
             "IP-CIDR,198.18.0.1/16,REJECT,no-resolve",
             "GEOIP,private,DIRECT,no-resolve",
         ]
+        cfg_rules.extend(self.rules_local_netware())
         if os.path.exists(config_path):
             with open(config_path, 'rt', encoding="utf-8") as f:
                 cfg = yaml.load(f, Loader=yaml.FullLoader)
@@ -389,14 +395,18 @@ class ClashConv:
                 for k, v in cfg["rule-providers"].items():
                     provider = v
                     provider.setdefault("interval", 3600)
-                    proxie = "DIRECT"
-                    if provider.get("proxie"):
-                        proxie = provider.pop("proxie")
-                    cfg_rules.append("RULE-SET,{},{}".format(k, proxie))
+                    proxy = "DIRECT"
+                    if provider.get("proxy"):
+                        proxy = provider.pop("proxy")
+                    cfg_rules.append("RULE-SET,{},{}".format(k, proxy))
                     cfg_providers[k] = provider
             if cfg.get("proxy_groups"):
                 cfg_groups = cfg["proxy_groups"]
                 for x in cfg_groups:
+                    if not default_proxy:
+                        default_proxy = x["name"]
+                    if x.get("default"):
+                        default_proxy = x["name"]
                     if x.get("hosts"):
                         tasks = [self.download_rule(url) for url in x["hosts"]]
                         pages = await asyncio.gather(*tasks)
@@ -410,7 +420,7 @@ class ClashConv:
         if cfg_providers:
             result["rule-providers"] = cfg_providers
         result["rules"] = cfg_rules
-        result["rules"].extend(self.rules_suffix())
+        result["rules"].extend(self.rules_suffix(default_proxy))
         return result
 
 
