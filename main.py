@@ -17,11 +17,6 @@ from fastapi.responses import HTMLResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from typing import List, Union
 from urllib.parse import urlsplit, unquote, parse_qsl
-try:
-    import uvloop
-    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
-except ImportError:
-    pass
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
