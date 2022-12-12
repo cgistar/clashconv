@@ -9,7 +9,7 @@ import os
 import re
 import httpx
 import tempfile
-import orjson
+import json
 import uvicorn
 import yaml
 from fastapi import FastAPI, Query, Request
@@ -121,7 +121,7 @@ class ClashConv:
 
     def _parse_vmess(self, url):
         node = dict()
-        info = orjson.loads(self.b64decode(url[1]))
+        info = json.loads(self.b64decode(url[1]))
         node["name"] = info["ps"]
         node["server"] = info["add"]
         node["port"] = info["port"] or "443"
