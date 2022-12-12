@@ -105,6 +105,21 @@ proxy_groups:
       - 🔰 国家选择
       - 🎯 全球直连
       - '@国家节点'
+rule-providers:
+  personal:
+    type: http
+    behavior: classical
+    path: ./rule_provider/personal
+    url: https://brinfo.cc/clash/rule_provider/personal.yaml
+    interval: 3600
+    proxy: DIRECT
+  Custom:
+    type: http
+    behavior: classical
+    path: ./rule_provider/Custom
+    url: https://brinfo.cc/clash/rule_provider/Custom.yaml
+    interval: 3600
+    proxy: 🔰 国家选择
 skip-proxy:
   - localhost
   - '*.local'
