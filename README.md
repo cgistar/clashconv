@@ -1,4 +1,15 @@
-# 将普通的订阅转为Clash订阅
+# 将普通的订阅转一下
 
-## 加入一些规则
-从 ACL4SSR 下载的规则
+## 部署
+```
+docker run -d -p 8080:80 colindy/clashconv:x86_64
+```
+
+## 使用
+http://localhost:8080/clashconv?url=https://aa.bb.com/subscribe?token=TOKEN
+
+## 自编译
+```
+docker build -t clashconv .
+docker run -d -p 8080:80 clashconv
+```
