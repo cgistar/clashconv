@@ -12,10 +12,10 @@ import tempfile
 import orjson as json
 import uvicorn
 import yaml
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, Query, Header, Request
 from fastapi.responses import HTMLResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from typing import List, Union
+from typing import List, Optional, Union
 from urllib.parse import urlsplit, unquote, parse_qsl
 try:
     import uvloop
@@ -53,6 +53,7 @@ def ordered_yaml_dump(data, stream=None, Dumper=yaml.SafeDumper, object_pairs_ho
 
 class ClashConv:
     def __init__(self, fileName=None) -> None:
+        self._platform = "undefine"
         self.countrys = collections.OrderedDict()
         self.countrys["香港"] = "🇭🇰香港"
         self.countrys["台湾"] = "🇨🇳台湾"
@@ -75,6 +76,14 @@ class ClashConv:
             f = open(fileName, "r", encoding="utf-8")
             self._stream = f.read()
             f.close()
+
+    @property
+    def platform(self):
+        return self._platform
+
+    @platform.setter
+    def platform(self, platform):
+        self._platform = platform
 
     def _yaml_load(self):
         return ordered_yaml_load(self._stream)
@@ -134,17 +143,20 @@ class ClashConv:
         path = info.get("path") or "/"
         if info.get("tls"):
             node["tls"] = True
+        # else:
+        #     node["skip-cert-verify"] = True
         if node["network"] == "ws":
             opts = dict()
             opts["path"] = path
             opts["max-early-data"] = 2048
             opts["early-data-header-name"] = "Sec-WebSocket-Protocol"
             if info.get("host"):
-                opts["headers"] = {"Host": info["host"]}
+                if self.platform not in ("linux", "macos"):
+                    opts["headers"] = {"Host": info["host"]}
             node["ws-opts"] = opts
-            node["ws-path"] = path
-            if opts.get("headers"):
-                node["ws-headers"] = {"Host": info["host"]}
+            # node["ws-path"] = path
+            # if info.get("host"):
+            #     node["ws-headers"] = {"Host": info["host"]}
         if node["network"] == "h2":
             opts = dict()
             opts["path"] = path
@@ -435,12 +447,21 @@ def hello():
 
 
 @app.get("/subconv")
-async def get_sub(*, url: Union[List[str], None] = Query(None)):
+async def get_sub(*, url: Union[List[str], None] = Query(None), user_agent: Optional[str] = Header(None)):
     sites = []
     subConv = ClashConv()
+    if user_agent:
+        logger.info(f"User-Agent: {user_agent}")
+        if user_agent.find("macOS") > 0 or user_agent.find("Macintosh") > 0:
+            subConv.platform = "macos"
+        elif user_agent.find("Linux") > 0:
+            subConv.platform = "linux"
+        elif user_agent == "Clash":
+            subConv.platform = "linux"
     for x in url:
         async with httpx.AsyncClient() as client:
             try:
+                logger.info(f"get: {x}")
                 response = await client.get(x)
                 if not response.is_success:
                     raise ValueError(f"获取订阅失败: {x}")
